@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Pop-Up Orders">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#f4f4f8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0c0c12" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="style.css">
+<title>Pop-Up Orders</title>
+</head>
+<body>
+<main id="app"></main>
+<nav id="tabs">
+  <button data-action="nav" data-view="orders">
+    <svg viewBox="0 0 24 24"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/></svg>Orders</button>
+  <button data-action="nav" data-view="new" class="primary" aria-label="New order">
+    <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg><span>New</span></button>
+  <button data-action="nav" data-view="summary">
+    <svg viewBox="0 0 24 24"><path d="M5 20V10M12 20V4M19 20v-7"/></svg>Summary</button>
+  <button data-action="nav" data-view="setup">
+    <svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>Setup</button>
+</nav>
+<div id="toast"></div>
+<script src="app.js"></script>
+</body>
+</html>

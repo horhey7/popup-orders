@@ -1,0 +1,14 @@
+{
+  "name": "Pop-Up Orders",
+  "short_name": "Orders",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f4f4f8",
+  "theme_color": "#5b5bf0",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
