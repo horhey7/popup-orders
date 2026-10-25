@@ -278,7 +278,11 @@ function saveOrder() {
 /* ---------- events ---------- */
 
 const actions = {
-  nav: el => go(el.dataset.view),
+  nav: el => {
+    const v = el.dataset.view;
+    if (v === 'new' && (!draft || draft.id)) draft = newDraft();
+    go(v);
+  },
   filter: el => { filter = el.dataset.k; render(); },
   togglePaid: el => { const o = state.orders.find(o => o.id === el.dataset.id); o.paid = !o.paid; save(); render(); },
   toggleFulfilled: el => { const o = state.orders.find(o => o.id === el.dataset.id); o.fulfilled = !o.fulfilled; save(); render(); },
