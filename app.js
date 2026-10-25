@@ -2,7 +2,7 @@
 'use strict';
 
 const KEY = 'popup-orders-data-v1';
-const PAYMENTS = ['Cash', 'Card', 'Venmo', 'Zelle', 'Other'];
+const PAYMENTS = ['Cash', 'Card', 'MBWay'];
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 const money = n => '$' + (Math.round(n * 100) / 100).toFixed(2);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -32,6 +32,13 @@ let draft = null; // order being created/edited
 const currentEvent = () => state.events.find(e => e.id === state.currentEventId) || state.events[0];
 const eventOrders = () => state.orders.filter(o => o.eventId === currentEvent()?.id);
 const nextNumber = () => Math.max(0, ...eventOrders().map(o => o.number)) + 1;
+function fmtDuration(ms) {
+  const m = Math.floor(ms / 60000);
+  if (m < 1) return '<1 min';
+  if (m < 60) return `${m} min`;
+  return `${Math.floor(m / 60)}h ${m % 60}m`;
+}
+const setFulfilled = (o, on) => { o.fulfilled = on; o.fulfilledAt = on ? Date.now() : null; };
 const orderTotal = lines => lines.reduce((s, l) => s + l.price * l.qty, 0);
 
 function toast(msg) {
@@ -104,6 +111,8 @@ function orderCard(o) {
     <div class="row" style="margin-top:10px;flex-wrap:wrap">
       <span class="badge ${o.paid ? 'ok' : 'bad'}">${o.paid ? '● Paid · ' + esc(o.payment) : '● Unpaid'}</span>
       <span class="badge ${o.fulfilled ? 'ok' : 'warn'}">${o.fulfilled ? '● Fulfilled' : '● To fulfill'}</span>
+      ${o.fulfilled && o.fulfilledAt ? `<span class="badge ok">⏱ ${fmtDuration(o.fulfilledAt - o.createdAt)}</span>` : ''}
+      ${!o.fulfilled ? `<span class="badge warn">⏱ <span class="wait" data-since="${o.createdAt}">${fmtDuration(Date.now() - o.createdAt)}</span></span>` : ''}
     </div>
     <div class="actions">
       <button class="btn small ${o.paid ? 'ghost' : 'good'}" data-action="togglePaid" data-id="${o.id}">${o.paid ? 'Mark unpaid' : 'Mark paid'}</button>
@@ -158,6 +167,9 @@ function renderSummary() {
   const revenue = paid.reduce((s, o) => s + o.total, 0);
   const outstanding = orders.filter(o => !o.paid).reduce((s, o) => s + o.total, 0);
   const todo = orders.filter(o => !o.fulfilled).length;
+  const times = orders.filter(o => o.fulfilled && o.fulfilledAt).map(o => o.fulfilledAt - o.createdAt);
+  const avg = times.length ? fmtDuration(times.reduce((a, b) => a + b, 0) / times.length) : '–';
+  const longest = times.length ? fmtDuration(Math.max(...times)) : '–';
 
   const items = {};
   for (const o of orders) for (const l of o.lines) {
@@ -178,6 +190,8 @@ function renderSummary() {
       <div class="card"><div class="muted">Unpaid</div><div class="big" style="color:var(--red)">${money(outstanding)}</div></div>
       <div class="card"><div class="muted">Orders</div><div class="big">${orders.length}</div></div>
       <div class="card"><div class="muted">To fulfill</div><div class="big">${todo}</div></div>
+      <div class="card"><div class="muted">Avg. time to fulfill</div><div class="big">${avg}</div></div>
+      <div class="card"><div class="muted">Longest</div><div class="big">${longest}</div></div>
     </div>
     <h2>Items sold</h2><div class="card">${itemRows ? `<table>${itemRows}</table>` : '<div class="muted">Nothing yet.</div>'}</div>
     <h2>Collected by payment type</h2><div class="card">${payRows ? `<table>${payRows}</table>` : '<div class="muted">Nothing yet.</div>'}</div>
@@ -250,10 +264,12 @@ function download(name, text, type) {
 function exportCsv() {
   const ev = currentEvent();
   const q = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
-  const rows = [['Order #', 'Time', 'Customer', 'Items', 'Total', 'Payment', 'Paid', 'Fulfilled', 'Note']];
+  const rows = [['Order #', 'Time', 'Customer', 'Items', 'Total', 'Payment', 'Paid', 'Fulfilled', 'Fulfilled at', 'Minutes to fulfill', 'Note']];
   for (const o of eventOrders().sort((a, b) => a.number - b.number))
     rows.push([o.number, new Date(o.createdAt).toLocaleString(), o.customer, o.lines.map(l => `${l.qty}x ${l.name}`).join('; '),
-      o.total.toFixed(2), o.payment, o.paid ? 'Yes' : 'No', o.fulfilled ? 'Yes' : 'No', o.note]);
+      o.total.toFixed(2), o.payment, o.paid ? 'Yes' : 'No', o.fulfilled ? 'Yes' : 'No',
+      o.fulfilledAt ? new Date(o.fulfilledAt).toLocaleString() : '',
+      o.fulfilledAt ? ((o.fulfilledAt - o.createdAt) / 60000).toFixed(1) : '', o.note]);
   download(`${ev.name.replace(/[^\w-]+/g, '_')}_${ev.date}.csv`, rows.map(r => r.map(q).join(',')).join('\n'), 'text/csv');
 }
 
@@ -263,12 +279,17 @@ function saveOrder() {
   const total = orderTotal(lines);
   const fields = { customer: draft.customer.trim(), payment: draft.payment, paid: draft.paid, fulfilled: draft.fulfilled, note: draft.note.trim(), lines, total };
   if (draft.id) {
-    Object.assign(state.orders.find(o => o.id === draft.id), fields);
+    const o = state.orders.find(o => o.id === draft.id);
+    const wasFulfilled = o.fulfilled;
+    Object.assign(o, fields);
+    if (draft.fulfilled !== wasFulfilled) setFulfilled(o, draft.fulfilled);
     toast('Order updated');
   } else {
     const evId = currentEvent().id;
     const number = nextNumber();
-    state.orders.push({ id: uid(), eventId: evId, number, createdAt: Date.now(), ...fields });
+    const order = { id: uid(), eventId: evId, number, createdAt: Date.now(), ...fields };
+    order.fulfilledAt = order.fulfilled ? order.createdAt : null;
+    state.orders.push(order);
     toast(`Order #${number} saved`);
   }
   save();
@@ -285,7 +306,7 @@ const actions = {
   },
   filter: el => { filter = el.dataset.k; render(); },
   togglePaid: el => { const o = state.orders.find(o => o.id === el.dataset.id); o.paid = !o.paid; save(); render(); },
-  toggleFulfilled: el => { const o = state.orders.find(o => o.id === el.dataset.id); o.fulfilled = !o.fulfilled; save(); render(); },
+  toggleFulfilled: el => { const o = state.orders.find(o => o.id === el.dataset.id); setFulfilled(o, !o.fulfilled); save(); render(); },
   edit: el => { draft = draftFromOrder(state.orders.find(o => o.id === el.dataset.id)); view = 'new'; render(); },
   cancelEdit: () => go('orders'),
   delete: el => {
@@ -403,6 +424,11 @@ document.addEventListener('input', e => {
 });
 
 render();
+
+// Keep the "waiting" timers on unfulfilled orders ticking without re-rendering.
+setInterval(() => {
+  document.querySelectorAll('.wait').forEach(el => { el.textContent = fmtDuration(Date.now() - +el.dataset.since); });
+}, 15000);
 
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 })();

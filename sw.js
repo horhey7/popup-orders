@@ -1,4 +1,4 @@
-const CACHE = 'popup-orders-v3';
+const CACHE = 'popup-orders-v4';
 const FILES = ['./', 'index.html', 'style.css', 'app.js', 'manifest.webmanifest', 'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-512.png'];
 
 self.addEventListener('install', e => {
